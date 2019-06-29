@@ -1,5 +1,6 @@
 ---
-title: "REPLACE ME"
+title: "L4P1"
+author: "Rebeca Miranda"
 output:
     html_document:
     df_print: paged
@@ -8,10 +9,229 @@ theme: sandstone
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(tidyverse)
+library(broom)
+library(modelr)
 source(here::here("code/lib.R"))
 theme_set(theme_bw())
+
 ```
 
 ```{r read}
 atividade = read_projectdata()
+
+
+atividade = atividade %>% 
+  filter(seguidores > 0, n_proprio > 0, n_retweet > 0)
+
+atividade = atividade  %>% 
+  filter(!is.na(twitter) & !is.na(segue)) %>% 
+  mutate(tuitou = !is.na(twitter) & (n_proprio + n_retweet > 0))
+
+atividade = atividade %>% filter(!is.na(twitter))
 ```
+
+##1. Qual a relação entre as características da atuação do parlamentar e o engajamento total que ele obtém no twitter? 
+
+As relações só ficam lineares após transformações. 
+
+#Casa e Engajamento total
+```{r}
+atividade %>% 
+  ggplot(aes(x = casa, y = engaj_total)) + 
+  geom_point(alpha = .6, color = "mediumorchid3")+
+  labs(y = "Engajamento total")
+
+```
+
+# Numero de Retweets e Engajamento total
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = n_retweet, y = engaj_total)) + 
+  geom_point(alpha = .6, color = "firebrick", size = 1.8) + 
+  scale_y_log10() + 
+  scale_x_log10()+
+  labs(x= "Numero de retweets", y = "Engajamento total")
+```
+
+# Twites próprios vs Engajamento total
+
+```{r}
+
+atividade %>% 
+  ggplot(aes(x = n_proprio, y = engaj_total)) + 
+  geom_point(alpha= .6, color ="indianred1", size = 1.8) + 
+  scale_y_log10() + 
+  scale_x_log10()+
+  labs(x= "Numero de tuites proprios", y= "Engajamento total")
+```
+
+# Quem segue e Engajamento total
+```{r}
+atividade %>% 
+  ggplot(aes(x = segue, y = engaj_total)) + 
+  geom_point(alpha=.6, color = "mediumorchid4", size = 1.8) + 
+  scale_y_log10() + 
+  scale_x_log10()+
+  labs(y = "Engajamento total")
+```
+
+#Seguidores vs Engajamento total
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = seguidores, y = engaj_total, color = "coral")) + 
+  geom_point(alpha = .6, color = "mediumvioletred", size = 1.8) + 
+  scale_y_log10() + 
+  scale_x_log10()+
+  labs(y = "Engajamento total")
+```
+
+
+```{r}
+atividade = atividade %>% 
+  mutate(seguidores_log = log10(seguidores), 
+         engaj_total_log = log10(engaj_total),
+         segue_log = log10(segue),
+         n_proprio_log = log10(n_proprio),
+         n_retweet_log = log10(n_retweet))
+```
+
+```{r}
+modelo = lm(engaj_total_log ~ seguidores_log + segue_log + n_proprio_log + n_retweet_log + casa, 
+   data = atividade)
+
+tidy(modelo, conf.int = TRUE, conf.level = 0.95)
+glance(modelo)
+
+```
+
+
+```{r}
+para_plotar_modelo = atividade %>% 
+  data_grid(n_proprio_log = seq_range(n_proprio_log, 10), # Crie um vetor de 10 valores no range
+            n_retweet_log = mean(n_retweet_log),
+            segue_log = mean(segue_log),
+            seguidores_log = mean(seguidores_log),
+            casa = c("senado", "câmara")) %>% 
+  add_predictions(modelo)
+glimpse(para_plotar_modelo)
+```
+
+Visualizando log log: 
+```{r}
+ggplot(data = atividade, aes(x = n_proprio_log)) + 
+  geom_point(aes(y = engaj_total_log)) + 
+  geom_line(data = para_plotar_modelo,
+            aes(y = pred, color = casa), 
+            size = 2)+
+  labs(x= "Numero de tuites proprios", y= "Engajamento Total")
+```
+
+Desfazendo a transformação:
+
+```{r}
+ggplot(data = atividade, aes(x = 10**n_proprio_log)) + 
+  # geom_point(aes(y = 10**seguidores_log)) + 
+  geom_line(data = para_plotar_modelo, 
+            aes(y = 10**pred, color=casa), 
+            size = 2)+
+  labs(x = "10^Numero de tuites proprios", y = "10^Pred")
+```
+
+Regressão linear múltipla foi utilizada para analisar a associação entre número de seguidores, número de usuários que o parlamentar segue, número de twets próprios, número de retweets, casa e Engajamento total do parlamentar. Os resultados da regressão indicam que um modelo no formato log(Engaj_total) = 0,57.log(seguidores) - 0,28.log(segue) + 0,51.log(n_tweets_proprio) +0,88.log(n_retweets) -0,05.casa, explicam 71,36% da variância da variável de resposta (R2 = 0.713). O aumento de 1 unidade de VarIndep1 medida como/em [unidade] produz uma mudança de xxx em VarDep. Portanto, observamos que as principais caracteristicas que influenciam o engajamento total são a quantidade de retweets e de tweets próprios.
+
+
+# 2. Qual a relação entre as características da atuação do parlamentar e o engajamento mediano que ele obtém no twitter? 
+#Casa e Engajamento mediano
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = casa, y = engaj_mediano)) + 
+  geom_point(alpha = .6, color= "seagreen4")+
+  labs(y = "Engajamento mediano")
+```
+
+# Seguidores e Engajamento Mediano
+
+```{r}
+atividade = atividade %>% 
+  filter(engaj_mediano >0)
+
+atividade %>% 
+  ggplot(aes(x = seguidores, y = engaj_mediano)) + 
+  geom_point(alpha = .6, color = "deepskyblue4", size = 1.8) + 
+  scale_y_log10() + 
+  scale_x_log10()+
+  labs(x= "Seguidores", y = "Engajamento mediano")
+```
+
+# Quem segue e Engajamento Mediano
+```{r}
+atividade %>% 
+  ggplot(aes(x = segue, y = engaj_mediano)) + 
+  geom_point(alpha = .6, color = "cyan4") + 
+  scale_y_log10() + 
+  scale_x_log10()+
+  labs(y= "Engajamento mediano" )
+```
+
+# Tuites próprios e Engajamento Mediano
+
+```{r}
+
+atividade %>% 
+  ggplot(aes(x = n_proprio, y = engaj_mediano)) + 
+  geom_point(alpha = .6, color = "darkturquoise") + 
+  scale_y_log10() + 
+  scale_x_log10()+
+  labs( x= "Numero de tuites proprios",y = "Engajamento mediano")
+```
+
+# Numero de Retweets e Engajamento Mediano
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = n_retweet, y = engaj_mediano)) + 
+  geom_point(alpha = .6, color = "darkslateblue") + 
+  scale_y_log10() + 
+  scale_x_log10()+
+  labs( x = "Numero de retweets" ,y = "Engajamento mediano")
+```
+
+
+```{r}
+atividade = atividade %>% 
+  mutate(engaj_mediano_log = log10(engaj_mediano),
+         n_proprio_log= log10(n_proprio))
+```
+
+```{r}
+modelo = lm(engaj_mediano_log ~ seguidores_log + segue_log + n_proprio_log + n_retweet_log + casa, 
+   data = atividade)
+tidy(modelo)
+glance(modelo)
+```
+
+
+```{r}
+para_plotar_modelo = atividade %>% 
+  data_grid(n_proprio_log = seq_range(n_proprio_log, 10), # Crie um vetor de 10 valores no range
+            n_retweet_log = mean(n_retweet_log),
+            segue_log = mean(segue_log),
+            seguidores_log = mean(seguidores_log),
+            casa = c("senado", "câmara")) %>% 
+  add_predictions(modelo)
+glimpse(para_plotar_modelo)
+```
+
+```{r}
+ggplot(data = atividade, aes(x = n_proprio_log)) + 
+  geom_point(aes(y = engaj_mediano_log)) + 
+  geom_line(data = para_plotar_modelo,
+            aes(y = pred, color = casa), 
+            size = 2)+
+  labs(x= "Numero de tuites proprios", y= "Engajamento mediano")
+```
+
+Regressão linear múltipla foi utilizada para analisar a associação entre número de seguidores, número de usuários que o parlamentar segue, número de twets próprios, número de retweets, casa e Engajamento Mediano. Os resultados da regressão indicam que um modelo no formato log(Engaj_Mediano) = 0,74.log(seguidores) - 0,34.log(segue) - 0,15.log(n_tweets_proprio) + 0,28.log(n_retweets) - 0,1.casa, explicando 57,28% da variância da variável de resposta (R2 = 0,57). Portanto, observamos que as principais caracteristicas que influenciam o engajamento total são a quantidade de retweets e de tweets próprios.
